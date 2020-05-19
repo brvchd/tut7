@@ -58,11 +58,11 @@ namespace tut7.Controllers
                 }
             }
 
-            var userclaim = new[] 
+            var userclaim = new[]
             {
                     new Claim(ClaimTypes.NameIdentifier, student.IndexNumber),
                     new Claim(ClaimTypes.Name, student.FirstName),
-                    new Claim(ClaimTypes.Role, "Student"),     
+                    new Claim(ClaimTypes.Role, "Student"),
             };
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["SecretKey"]));
@@ -78,7 +78,7 @@ namespace tut7.Controllers
 
             student.RefreshToken = Guid.NewGuid().ToString();
             student.RefreshTokenExpirationDate = DateTime.Now.AddDays(1);
-            
+
 
             return Ok(new
             {
@@ -204,4 +204,7 @@ namespace tut7.Controllers
                     }
                 }
                 return response;
+            }
+        }
+    }
 }

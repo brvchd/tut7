@@ -14,6 +14,8 @@ using Microsoft.IdentityModel.Tokens;
 using tut7.DTOs.Requests;
 using tut7.DTOs.Responce;
 using tut7.Model;
+using tut7.Services;
+using static System.Console;
 
 namespace tut7.Controllers
 {
@@ -22,9 +24,11 @@ namespace tut7.Controllers
     public class StudentsController : ControllerBase
     {
         private readonly IConfiguration _configuration;
+        private readonly IStudentDbService _studentDbService;
 
-        public StudentsController(IConfiguration configuration)
+        public StudentsController(IConfiguration configuration, IStudentDbService studentDbService)
         {
+            _studentDbService = studentDbService;
             _configuration = configuration;
         }
 
@@ -55,36 +59,108 @@ namespace tut7.Controllers
                     {
                         return NotFound();
                     }
+
+
+                    var userclaim = new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, student.IndexNumber),
+                        new Claim(ClaimTypes.Name, student.FirstName),
+                        new Claim(ClaimTypes.Role, "Student"),
+                };
+
+                    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["SecretKey"]));
+                    var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+                    var token = new JwtSecurityToken(
+                        issuer: "Gakko",
+                        audience: "Students",
+                        claims: userclaim,
+                        expires: DateTime.Now.AddMinutes(1),
+                        signingCredentials: creds
+                    );
+
+                    student.RefreshToken = Guid.NewGuid().ToString();
+                    student.RefreshTokenExpirationDate = DateTime.Now.AddDays(1);
+
+                    com.CommandText = "Update Student set RefreshToken = @RefreshToken and RefreshTokenExpirationDate = @ExpDate";
+                    com.Parameters.AddWithValue("RefreshToken", student.RefreshToken);
+                    com.Parameters.AddWithValue("ExpDate", student.RefreshTokenExpirationDate);
+
+                    return Ok(new
+                    {
+                        token = new JwtSecurityTokenHandler().WriteToken(token),
+                        refreshToken = student.RefreshToken
+                    });
+
                 }
             }
+        }
 
-            var userclaim = new[]
+        [HttpPost("{refreshToken}/refresh")]
+        public IActionResult RefreshToken([FromRoute]string refreshToken)
+        {
+            DateTime expirationDate = DateTime.Now;
+            var student = new Student();
+            using (var con = new SqlConnection("Data Source=db-mssql;Initial Catalog=s18963;Integrated Security=True"))
             {
-                    new Claim(ClaimTypes.NameIdentifier, student.IndexNumber),
-                    new Claim(ClaimTypes.Name, student.FirstName),
-                    new Claim(ClaimTypes.Role, "Student"),
-            };
+                using (var com = new SqlCommand())
+                {
+                    com.Connection = con;
+                    com.CommandText = "Select * from Student Where RefreshToken = @RefreshToken";
+                    com.Parameters.AddWithValue("RefreshToken", refreshToken);
+                    con.Open();
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["SecretKey"]));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+                    var dr = com.ExecuteReader();
+                    if (dr.Read())
+                    {
+                        expirationDate = Convert.ToDateTime(dr["RefreshTokenExpirationDate"].ToString());
+                        student.IndexNumber = dr["IndexNumber"].ToString();
+                        student.FirstName = dr["FirstName"].ToString();
+                    }
+                    else
+                    {
+                        return NotFound("Cannot find such token");
+                    }
 
-            var token = new JwtSecurityToken(
-                issuer: "Gakko",
-                audience: "Students",
-                claims: userclaim,
-                expires: DateTime.Now.AddMinutes(1),
-                signingCredentials: creds
-            );
+                    if (expirationDate > DateTime.Now)
+                    {
+                        var userclaim = new[] {
+                            new Claim(ClaimTypes.NameIdentifier, student.IndexNumber),
+                            new Claim(ClaimTypes.Name, student.FirstName),
+                            new Claim(ClaimTypes.Role, "Student"),
+                        };
 
-            student.RefreshToken = Guid.NewGuid().ToString();
-            student.RefreshTokenExpirationDate = DateTime.Now.AddDays(1);
+                        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["SecretKey"]));
+                        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+                        var token = new JwtSecurityToken(
+                             issuer: "Gakko",
+                            audience: "Students",
+                            claims: userclaim,
+                            expires: DateTime.Now.AddMinutes(1),
+                            signingCredentials: creds
+                        );
 
-            return Ok(new
-            {
-                token = new JwtSecurityTokenHandler().WriteToken(token),
-                refreshToken = student.RefreshToken
-            });
+                        student.RefreshToken = Guid.NewGuid().ToString();
+                        student.RefreshTokenExpirationDate = DateTime.Now.AddDays(1);
+
+                        dr.Close();
+                        com.CommandText = "Update Student set RefreshToken = @RefreshToken and RefreshTokenExpirationDate = @ExpDate";
+                        com.Parameters.AddWithValue("RefreshToken", student.RefreshToken);
+                        com.Parameters.AddWithValue("ExpDate", student.RefreshTokenExpirationDate);
+                        
+                        return Ok(new
+                        {
+                            token = new JwtSecurityTokenHandler().WriteToken(token),
+                            refreshToken = student.RefreshToken
+                        });
+                    }
+                    else
+                    {
+                        return BadRequest("Token hasn't expired yet");
+                    }
+                }
+            }
         }
 
 
@@ -92,119 +168,34 @@ namespace tut7.Controllers
         [Authorize(Roles = "employee")]
         public IActionResult EnrollStudent(EnrollStudentRequest request)
         {
-            var response = new EnrollStudentResponse();
-            using (var con = new SqlConnection("Data Source=db-mssql;Initial Catalog=s18963;Integrated Security=True"))
+            EnrollStudentResponse response = null;
+            try
             {
-                using (var com = new SqlCommand())
-                {
-                    com.Connection = con;
-                    com.CommandText = "Select * From Studies Where Name = @Name";
-                    com.Parameters.AddWithValue("Name", request.Studies);
-                    con.Open();
-
-                    var trans = con.BeginTransaction();
-                    com.Transaction = trans;
-                    var dr = com.ExecuteReader();
-
-                    if (!dr.Read())
-                    {
-                        dr.Close();
-                        trans.Rollback();
-                        return BadRequest("Specified studies does not exist");
-                    }
-
-                    int idStudy = (int)dr["IdStudy"];
-
-                    dr.Close();
-
-                    com.CommandText = "Select * From Enrollment Where Semester = 1 And IdStudy = @idStudy";
-                    int IdEnrollment = (int)dr["IdEnrollemnt"] + 1;
-                    com.Parameters.AddWithValue("IdStudy", idStudy);
-                    dr = com.ExecuteReader();
-
-                    if (dr.Read())
-                    {
-                        dr.Close();
-                        com.CommandText = "Select MAX(idEnrollment) as 'idEnrollment' From Enrollment";
-                        dr = com.ExecuteReader();
-                        dr.Close();
-                        DateTime StartDate = DateTime.Now;
-                        com.CommandText = "Insert Into Enrollment(IdEnrollment, Semester, IdStudy, StartDate) Values (@IdEnrollemnt, 1, @IdStudy, @StartDate)";
-                        com.Parameters.AddWithValue("IdEnrollemnt", IdEnrollment);
-                        com.Parameters.AddWithValue("StartDate", StartDate);
-                        com.ExecuteNonQuery();
-                    }
-
-                    dr.Close();
-
-                    com.CommandText = "Select * From Student Where IndexNumber=@IndexNumber";
-                    com.Parameters.AddWithValue("IndexNumber", request.IndexNumber);
-                    dr = com.ExecuteReader();
-
-                    if (!dr.Read())
-                    {
-                        dr.Close();
-                        com.CommandText = "Insert Into Student(IndexNumber, FirstName, LastName, Birthdate, IdEnrollment) Value (@IndexNumber, @FirstName, @LastName, @BirthDate, @IdEnrollment)";
-                        com.Parameters.AddWithValue("FirstName", request.FirstName);
-                        com.Parameters.AddWithValue("LastName", request.LastName);
-                        com.Parameters.AddWithValue("BirthDate", request.BirthDate);
-                        com.Parameters.AddWithValue("IdEnrollment", IdEnrollment);
-                        com.ExecuteNonQuery();
-                        dr.Close();
-
-                        response.Semester = 1;
-
-                    }
-                    else
-                    {
-                        dr.Close();
-                        trans.Rollback();
-                        return BadRequest("You can't add student with the same index number");
-                    }
-
-                    trans.Commit();
-                }
+                response = _studentDbService.EnrollStudent(request);
+                if (response == null) return BadRequest("Such student was not found");
             }
-
+            catch (Exception e)
+            {
+                WriteLine(e.Message);
+            }
             return Created("EnrollStudent", response);
         }
 
 
         [Authorize(Roles = "employee")]
         [HttpPost(Name = "PromoteStudent")]
-        public PromoteStudentResponse PromoteStudents(PromoteStudentRequest request)
+        public IActionResult PromoteStudents(PromoteStudentRequest request)
         {
             PromoteStudentResponse response = null;
-            using (var con = new SqlConnection("Data Source=db-mssql;Initial Catalog=s18822;Integrated Security=True"))
+            try
             {
-                using (SqlCommand com = new SqlCommand())
-                {
-                    com.Connection = con;
-                    con.Open();
-                    com.CommandText = "PromoteStudent";
-                    com.CommandType = System.Data.CommandType.StoredProcedure;
-
-                    com.Parameters.AddWithValue("Name", request.Name);
-
-                    com.Parameters.AddWithValue("Semester", request.Semester);
-                    var dr = com.ExecuteReader();
-                    if (dr.Read())
-                    {
-                        dr.Close();
-                        request.Name = dr["Name"].ToString();
-                        request.Semester = (int)dr["Semester"];
-
-                        dr = com.ExecuteReader();
-                        dr.Read();
-                        response = new PromoteStudentResponse();
-                        response.Name = dr["Name"].ToString();
-                        response.Semester = (int)dr["Semester"];
-
-                        dr.Close();
-                    }
-                }
-                return response;
+                response = _studentDbService.PromoteStudents(request);
             }
+            catch (SqlException sqlex)
+            {
+                WriteLine(sqlex.Message);
+            }
+            return Created("PromoteStudent", response);
         }
     }
 }

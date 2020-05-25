@@ -21,12 +21,12 @@ namespace tut7.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class StudentsController : ControllerBase
+    public class EnrollmentsController : ControllerBase
     {
         private readonly IConfiguration _configuration;
         private readonly IStudentDbService _studentDbService;
 
-        public StudentsController(IConfiguration configuration, IStudentDbService studentDbService)
+        public EnrollmentsController(IConfiguration configuration, IStudentDbService studentDbService)
         {
             _studentDbService = studentDbService;
             _configuration = configuration;
@@ -134,7 +134,7 @@ namespace tut7.Controllers
                         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
                         var token = new JwtSecurityToken(
-                             issuer: "Gakko",
+                            issuer: "Gakko",
                             audience: "Students",
                             claims: userclaim,
                             expires: DateTime.Now.AddMinutes(1),
@@ -176,7 +176,7 @@ namespace tut7.Controllers
             }
             catch (Exception e)
             {
-                WriteLine(e.Message);
+                return BadRequest(e.Message);
             }
             return Created("EnrollStudent", response);
         }

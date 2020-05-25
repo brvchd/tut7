@@ -157,7 +157,7 @@ namespace tut7.Controllers
                     }
                     else
                     {
-                        return BadRequest("Token hasn't expired yet");
+                        return BadRequest("Token hasn't expired yet.");
                     }
                 }
             }

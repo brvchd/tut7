@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using tut7.DTOs.Requests;
 using tut7.DTOs.Responce;
+using tut7.Generator;
 
 namespace tut7.Services
 {
@@ -49,7 +50,7 @@ namespace tut7.Services
                         dr = com.ExecuteReader();
                         dr.Close();
                         DateTime StartDate = DateTime.Now;
-                        com.CommandText = "Insert Into Enrollment(IdEnrollment, Semester, IdStudy, StartDate) Values (@IdEnrollemnt, 1, @IdStudy, @StartDate)";
+                        com.CommandText = "Insert Into Enrollment(IdEnrollment, Semester, IdStudy, StartDate, Password) Values (@IdEnrollemnt, 1, @IdStudy, @StartDate, @Password)";
                         com.Parameters.AddWithValue("IdEnrollemnt", IdEnrollment);
                         com.Parameters.AddWithValue("StartDate", StartDate);
                         com.ExecuteNonQuery();
@@ -63,12 +64,16 @@ namespace tut7.Services
 
                     if (!dr.Read())
                     {
+                        var salt = SaltGenerator.GenerateSalt();
                         dr.Close();
-                        com.CommandText = "Insert Into Student(IndexNumber, FirstName, LastName, Birthdate, IdEnrollment) Value (@IndexNumber, @FirstName, @LastName, @BirthDate, @IdEnrollment)";
+                        com.CommandText = "Insert Into Student(IndexNumber, FirstName, LastName, Birthdate, IdEnrollment, Password, Salt) Value (@IndexNumber, @FirstName, @LastName, @BirthDate, @IdEnrollment, @Password, @Salt)";
                         com.Parameters.AddWithValue("FirstName", request.FirstName);
                         com.Parameters.AddWithValue("LastName", request.LastName);
                         com.Parameters.AddWithValue("BirthDate", request.BirthDate);
                         com.Parameters.AddWithValue("IdEnrollment", IdEnrollment);
+                        com.Parameters.AddWithValue("Password", HashPassword.HashPass(request.Password,salt));
+                        com.Parameters.AddWithValue("Salt", salt);
+
                         com.ExecuteNonQuery();
                         dr.Close();
 

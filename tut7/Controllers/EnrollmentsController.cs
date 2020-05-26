@@ -13,6 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using tut7.DTOs.Requests;
 using tut7.DTOs.Responce;
+using tut7.Generator;
 using tut7.Model;
 using tut7.Services;
 using static System.Console;
@@ -44,12 +45,31 @@ namespace tut7.Controllers
                 {
                     //login can be moved to service
                     com.Connection = con;
-                    com.CommandText = "Select IndexNumber, FirstName From Student Where IndexNumber = @login AND Password = @password";
-                    com.Parameters.AddWithValue("password", request.Password);
+                    var salt = String.Empty;
+                    var password = String.Empty;
+                    com.CommandText = "Select Password, Salt Where IndexNumber = @login";
                     com.Parameters.AddWithValue("login", request.Login);
                     con.Open();
-
                     var dr = com.ExecuteReader();
+
+                    if (dr.Read())
+                    {
+                        password = dr["Password"].ToString();
+                        salt = dr["Salt"].ToString();
+                    }
+                    else
+                    {
+                        return NotFound("Specied student was not found.");
+                    }
+
+                    var passToCompare = HashPassword.HashPass(request.Password, salt);
+                    if (!password.Equals(passToCompare)) return BadRequest("Wrong password");
+                    dr.Close();
+
+                    com.CommandText = "Select IndexNumber, FirstName From Student Where IndexNumber = @login";
+                    com.Parameters.AddWithValue("password", request.Password);
+                    
+                    
                     if (dr.Read())
                     {
                         student.IndexNumber = dr["IndexNumber"].ToString();
@@ -66,7 +86,7 @@ namespace tut7.Controllers
                         new Claim(ClaimTypes.NameIdentifier, student.IndexNumber),
                         new Claim(ClaimTypes.Name, student.FirstName),
                         new Claim(ClaimTypes.Role, "Student"),
-                };
+                    };
 
                     var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["SecretKey"]));
                     var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

@@ -19,5 +19,7 @@ namespace tut7.DTOs.Requests
         public string BirthDate { get; set; }
         [Required(ErrorMessage = "Provide name of studies")]
         public string Studies { get; set; }
+        [Required(ErrorMessage ="Create new password")]
+        public string Password { get; set; }
     }
 }

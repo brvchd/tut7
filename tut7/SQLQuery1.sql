@@ -1,0 +1,3 @@
+﻿ALTER TABLE Student
+ADD Salt NVARCHAR (25)
+	

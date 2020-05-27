@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using tut7.Services;
 
 namespace tut7
 {
@@ -41,6 +42,7 @@ namespace tut7
                             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["SecretKey"]))
                         };
                     });
+            services.AddSingleton<IStudentDbService,StudentDbService>();
             services.AddControllers();
         }
 

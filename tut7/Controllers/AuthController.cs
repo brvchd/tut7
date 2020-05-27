@@ -110,7 +110,7 @@ namespace tut7.Controllers
                     student.FirstName = dr["FirstName"].ToString();
 
 
-                    if (expirationDate > DateTime.Now) return BadRequest("Token has expired yet.");
+                    if (expirationDate < DateTime.Now) return BadRequest("Refrehs token has expired");
 
                     var userclaim = new[] {
                             new Claim(ClaimTypes.NameIdentifier, student.IndexNumber),

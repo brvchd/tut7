@@ -103,16 +103,12 @@ namespace tut7.Controllers
                     con.Open();
 
                     var dr = com.ExecuteReader();
-                    if (dr.Read())
-                    {
-                        expirationDate = Convert.ToDateTime(dr["RefreshTokenExpirationDate"].ToString());
-                        student.IndexNumber = dr["IndexNumber"].ToString();
-                        student.FirstName = dr["FirstName"].ToString();
-                    }
-                    else
-                    {
-                        return NotFound("Cannot find such token");
-                    }
+                    if (!dr.Read()) return NotFound("Cannot find such token");
+
+                    expirationDate = Convert.ToDateTime(dr["RefreshTokenExpirationDate"].ToString());
+                    student.IndexNumber = dr["IndexNumber"].ToString();
+                    student.FirstName = dr["FirstName"].ToString();
+
 
                     if (expirationDate > DateTime.Now) return BadRequest("Token has expired yet.");
 

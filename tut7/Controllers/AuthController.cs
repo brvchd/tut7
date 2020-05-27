@@ -40,22 +40,18 @@ namespace tut7.Controllers
                     con.Open();
                     var dr = com.ExecuteReader();
 
-                    if (dr.Read())
-                    {
-                        student.IndexNumber = dr["IndexNumber"].ToString();
-                        student.FirstName = dr["FirstName"].ToString();
-                        password = dr["Password"].ToString();
-                        salt = dr["Salt"].ToString();
-                    }
-                    else
-                    {
-                        return NotFound("Specified student was not found.");
-                    }
+                    if (!dr.Read()) return NotFound("Specified student was not found.");
+
+                    student.IndexNumber = dr["IndexNumber"].ToString();
+                    student.FirstName = dr["FirstName"].ToString();
+                    password = dr["Password"].ToString();
+                    salt = dr["Salt"].ToString();
 
                     var passToCompare = HashPassword.HashPass(request.Password, salt);
-                    if (!password.Equals(passToCompare)) return BadRequest("Wrong login or password");
-                    dr.Close();
 
+                    if (!password.Equals(passToCompare)) return BadRequest("Wrong login or password");
+
+                    dr.Close();
 
                     var userclaim = new[]
                     {

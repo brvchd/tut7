@@ -97,7 +97,7 @@ namespace tut7.Services
         public PromoteStudentResponse PromoteStudents(PromoteStudentRequest request)
         {
             PromoteStudentResponse response = null;
-            using (var con = new SqlConnection("Data Source=db-mssql;Initial Catalog=s18822;Integrated Security=True"))
+            using (var con = new SqlConnection("Data Source=db-mssql;Initial Catalog=s18963;Integrated Security=True"))
             {
                 using (SqlCommand com = new SqlCommand())
                 {
